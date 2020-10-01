@@ -39,6 +39,7 @@ some pictures of cats.
 #include "esp_partition.h"
 #include "nvs_flash.h"
 #include "driver/gpio.h"
+#include "driver/timer.h"
 
 #include "soc/timer_group_struct.h"
 #include "soc/dport_reg.h"
@@ -107,12 +108,36 @@ void handleCharging() {
 	guiInit();
 	guiCharging();
 
+	uint8_t timeout = false;
+	uint64_t currentTimeout = 0;
+	uint64_t maxTimeout = 5000;
+	nvs_handle nvsHandle = NULL;
+	if (nvs_open("8bkc", NVS_READWRITE, &nvsHandle) == ESP_OK) {
+		nvs_get_u8(nvsHandle, "timeout", &timeout);
+	}
+
+	if(timeout)
+	{
+		timer_config_t  config;
+		config.counter_dir = TIMER_COUNT_UP;
+		timer_init(0, 0, &config);
+		timer_start(0, 0);
+	}
+
 	//Disable app cpu
 	DPORT_SET_PERI_REG_MASK(DPORT_APPCPU_CTRL_B_REG, DPORT_APPCPU_CLKGATE_EN);
 	//Speed down
 	rtc_clk_cpu_freq_set(RTC_CPU_FREQ_2M);
 
 	do {
+		if(timeout){
+			timer_get_counter_value(0, 0, &currentTimeout);
+			if(currentTimeout > maxTimeout) {
+				kcugui_cls();
+				timer_pause(0, 0);
+			}
+		}
+
 		r=kchal_get_chg_status();
 		if (r==KC_CHG_FULL || fixFull) {
 			guiFull();
