@@ -39,7 +39,6 @@ some pictures of cats.
 #include "esp_partition.h"
 #include "nvs_flash.h"
 #include "driver/gpio.h"
-#include "driver/timer.h"
 
 #include "soc/timer_group_struct.h"
 #include "soc/dport_reg.h"
@@ -109,8 +108,8 @@ void handleCharging() {
 	guiCharging();
 
 	uint8_t timeout = false;
-	uint64_t currentTimeout = 0;
-	uint64_t maxTimeout = 5000;
+	time_t now;
+	time_t maxTimeout = 5;
 	nvs_handle nvsHandle = NULL;
 	if (nvs_open("8bkc", NVS_READWRITE, &nvsHandle) == ESP_OK) {
 		nvs_get_u8(nvsHandle, "timeout", &timeout);
@@ -118,10 +117,8 @@ void handleCharging() {
 
 	if(timeout)
 	{
-		timer_config_t  config;
-		config.counter_dir = TIMER_COUNT_UP;
-		timer_init(0, 0, &config);
-		timer_start(0, 0);
+		time(&now);
+		maxTimeout += now;
 	}
 
 	//Disable app cpu
@@ -130,36 +127,43 @@ void handleCharging() {
 	rtc_clk_cpu_freq_set(RTC_CPU_FREQ_2M);
 
 	do {
+		r = kchal_get_chg_status();
 		if(timeout){
-			timer_get_counter_value(0, 0, &currentTimeout);
-			if(currentTimeout > maxTimeout) {
+			time(&now);
+
+			if(now > maxTimeout) {
 				kcugui_cls();
-				timer_pause(0, 0);
+				kcugui_flush();
 			}
 		}
-
-		r=kchal_get_chg_status();
-		if (r==KC_CHG_FULL || fixFull) {
-			guiFull();
-			printf("Full!\n");
-			fullCtr++;
-		} else if (r==KC_CHG_CHARGING) {
-			guiCharging(kchal_get_bat_mv()>4100);
-			printf("Charging...\n");
-			fullCtr=0;
+		else
+		{
+			if (r == KC_CHG_FULL || fixFull)
+			{
+				guiFull();
+				printf("Full!\n");
+				fullCtr++;
+			}
+			else if (r == KC_CHG_CHARGING)
+			{
+				guiCharging(kchal_get_bat_mv() > 4100);
+				printf("Charging...\n");
+				fullCtr = 0;
+			}
 		}
-
-		if (kchal_get_keys() & KC_BTN_POWER) {
+		if (kchal_get_keys() & KC_BTN_POWER)
+		{
 			rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M);
 			printf("Power btn pressed; restarting with override bit set\n");
-			uint32_t r=REG_READ(RTC_CNTL_STORE0_REG);
-			r|=0x100;
+			uint32_t r = REG_READ(RTC_CNTL_STORE0_REG);
+			r |= 0x100;
 			REG_WRITE(RTC_CNTL_STORE0_REG, r);
 			kchal_boot_into_new_app();
 		}
-		if (fullCtr==32) {
+		if (fullCtr == 32)
+		{
 			kchal_cal_adc();
-			fixFull=1;
+			fixFull = 1;
 		}
 		vTaskDelay(1);
 	} while (r!=KC_CHG_NOCHARGER);
