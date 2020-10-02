@@ -115,8 +115,7 @@ void handleCharging() {
 		nvs_get_u8(nvsHandle, "timeout", &timeout);
 	}
 
-	if(timeout)
-	{
+	if(timeout) {
 		time(&now);
 		maxTimeout += now;
 	}
@@ -128,7 +127,7 @@ void handleCharging() {
 
 	do {
 		r = kchal_get_chg_status();
-		if(timeout){
+		if(timeout) {
 			time(&now);
 
 			if(now > maxTimeout) {
@@ -138,21 +137,18 @@ void handleCharging() {
 		}
 		else
 		{
-			if (r == KC_CHG_FULL || fixFull)
-			{
+			if (r == KC_CHG_FULL || fixFull) {
 				guiFull();
 				printf("Full!\n");
 				fullCtr++;
 			}
-			else if (r == KC_CHG_CHARGING)
-			{
+			else if (r == KC_CHG_CHARGING) {
 				guiCharging(kchal_get_bat_mv() > 4100);
 				printf("Charging...\n");
 				fullCtr = 0;
 			}
 		}
-		if (kchal_get_keys() & KC_BTN_POWER)
-		{
+		if (kchal_get_keys() & KC_BTN_POWER) {
 			rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M);
 			printf("Power btn pressed; restarting with override bit set\n");
 			uint32_t r = REG_READ(RTC_CNTL_STORE0_REG);
@@ -160,10 +156,9 @@ void handleCharging() {
 			REG_WRITE(RTC_CNTL_STORE0_REG, r);
 			kchal_boot_into_new_app();
 		}
-		if (fullCtr == 32)
-		{
+		if (fullCtr == 32) {
 			kchal_cal_adc();
-			fixFull = 1;
+			fixFull=1;
 		}
 		vTaskDelay(1);
 	} while (r!=KC_CHG_NOCHARGER);
